@@ -9,7 +9,7 @@ import { Range } from '../../../common/core/range.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
-import { InjectedTextOptions, TrackedRangeStickiness } from '../../../common/model.js';
+import { IModelDeltaDecoration, InjectedTextOptions, TrackedRangeStickiness } from '../../../common/model.js';
 
 export class PaperproofDecorations extends Disposable implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.paperproof';
@@ -38,23 +38,30 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 	}
 
 	private _updateDecorations() {
-		const opts: InjectedTextOptions = {
-			content: 'Hello Geni',
-			inlineClassNameAffectsLetterSpacing: true,
-			inlineClassName: 'yo',
-		};
-
-		const options = {
-			description: 'Paperproof chip',
-			showIfCollapsed: true,
-			collapseOnReplaceEdit: true,
-			stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-			after: opts
-		};
-
 		this.editor.changeDecorations(accessor => {
 			const oldDecorationIds = this._decorationIds;
-			const newDecorationIds = accessor.deltaDecorations(this._decorationIds, [{ range: new Range(1, 1, 1, 100), options }]);
+			const model = this.editor.getModel();
+			const decorations: IModelDeltaDecoration[] = [];
+			for (let line = 1; line <= (model?.getLineCount() || 0); line++) {
+				const lineContent = model?.getLineContent(line);
+				const opts: InjectedTextOptions = {
+					content: `Line ${line}: ${lineContent?.length}`,
+					inlineClassNameAffectsLetterSpacing: true,
+					inlineClassName: 'yo',
+				};
+
+				const options = {
+					description: 'Paperproof chip',
+					showIfCollapsed: true,
+					collapseOnReplaceEdit: true,
+					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+					after: opts
+				};
+
+				const range = new Range(line, 0, line, 100);
+				decorations.push({ range, options });
+			}
+			const newDecorationIds = accessor.deltaDecorations(this._decorationIds, decorations);
 			this._decorationIds = newDecorationIds;
 			this.log.info(`Changing decorations. Old ids: ${oldDecorationIds.join(',')}`);
 			this.log.info(`Changing decorations. New ids: ${newDecorationIds.join(',')}`);
