@@ -8055,6 +8055,37 @@ declare namespace monaco.languages {
 		dispose(): void;
 	}
 
+	export type LeanHypothesis = {
+		value: null | string;
+		username: string;
+		type: string;
+		id: string;
+		isProof: string;
+	};
+
+	export type LeanGoal = {
+		username: string;
+		type: string;
+		id: string;
+		hyps: LeanHypothesis[];
+	};
+
+	export type LeanTactic = {
+		tacticString: string;
+		tacticDependsOn: string[];
+		goalBefore: LeanGoal;
+		goalsAfter: LeanGoal[];
+		spawnedGoals: LeanGoal[];
+	};
+
+	export type LeanProofTree = LeanTactic[];
+
+	export type ProofTree = LeanProofTree;
+
+	export interface ProofTreeProvider {
+		provideProofTree(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<ProofTree | undefined>;
+	}
+
 	export interface InlayHintsProvider {
 		displayName?: string;
 		onDidChangeInlayHints?: IEvent<void>;

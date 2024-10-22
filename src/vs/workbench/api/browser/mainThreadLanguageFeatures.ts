@@ -680,6 +680,17 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		}));
 	}
 
+	// --- proof tree
+
+	$registerProofTreeProvider(handle: number, selector: IDocumentFilterDto[], extensionId: ExtensionIdentifier): void {
+		const provider: languages.ProofTreeProvider = {
+			provideProofTree: async (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.ProofTree | undefined> => {
+				return this._proxy.$provideProofTree(handle, model.uri, position, token);
+			}
+		};
+		this._registrations.set(handle, this._languageFeaturesService.proofTreeProvider.register(selector, provider));
+	}
+
 	// --- inline hints
 
 	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], supportsResolve: boolean, eventHandle: number | undefined, displayName: string | undefined): void {

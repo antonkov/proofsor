@@ -10,6 +10,10 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { IModelDeltaDecoration, InjectedTextOptions, TrackedRangeStickiness } from '../../../common/model.js';
+import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { observableValue } from '../../../../base/common/observable.js';
+import { ProofTreeProvider } from '../../../common/languages.js';
 
 export class PaperproofDecorations extends Disposable implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.paperproof';
@@ -17,13 +21,32 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 	// Decoration ids contributed by paperproof
 	private _decorationIds: string[] = [];
 	private readonly _sessionDisposables = new DisposableStore();
+	private readonly proofTreeProvider = observableValue<ProofTreeProvider | undefined>(this, undefined);
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ILogService private readonly log: ILogService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
+		this._register(this.languageFeaturesService.proofTreeProvider.onDidChange(async () => {
+			this.log.info('[dbg] Proof tree changed');
+			const model = this.editor.getModel();
+			if (!model) {
+				return;
+			}
+			const providers = this.languageFeaturesService.proofTreeProvider.all(model);
+			if (providers.length === 0) {
+				this.proofTreeProvider.set(undefined, undefined);
+			} else {
+				this.proofTreeProvider.set(providers[0], undefined);
+			}
+			this._update();
+		}));
+		this.editor.onDidChangeCursorPosition(() => {
+			this._updateDecorations();
+		});
 		this._register(this._sessionDisposables);
 		this._register(this.editor.onDidChangeModel(() => this._update()));
 		this._update();
@@ -37,7 +60,16 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 		this._updateDecorations();
 	}
 
-	private _updateDecorations() {
+	private async _updateDecorations() {
+		const model = this.editor.getModel();
+		const provider = this.proofTreeProvider.get();
+		const position = this.editor.getPosition();
+		if (!model || !provider || !position) {
+			return;
+		}
+		const tree = await provider.provideProofTree(model, position, CancellationToken.None);
+		this.log.info(`[dbg] Proof tree: ${tree?.map(t => t.tacticString).join(', ')}`);
+
 		this.editor.changeDecorations(accessor => {
 			const oldDecorationIds = this._decorationIds;
 			const model = this.editor.getModel();

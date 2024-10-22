@@ -1643,6 +1643,20 @@ class SignatureHelpAdapter {
 	}
 }
 
+// TODO: Does the adapter need to be smarter?
+class ProofTreeAdapter {
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.ProofTreeProvider,
+	) { }
+
+	async provideProofTree(resource: URI, position: IPosition, token: CancellationToken): Promise<vscode.ProofTree | undefined> {
+		const doc = this._documents.getDocument(resource);
+		const pos = typeConvert.Position.to(position);
+		return this._provider.provideProofTree(doc, pos, token);
+	}
+}
+
 class InlayHintsAdapter {
 
 	private _cache = new Cache<vscode.InlayHint>('InlayHints');
@@ -2201,7 +2215,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
 	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter
-	| DocumentDropEditAdapter | MappedEditsAdapter | NewSymbolNamesAdapter | InlineEditAdapter;
+	| DocumentDropEditAdapter | MappedEditsAdapter | NewSymbolNamesAdapter | InlineEditAdapter | ProofTreeAdapter;
 
 class AdapterData {
 	constructor(
@@ -2753,6 +2767,16 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			result = Disposable.from(result, subscription);
 		}
 		return result;
+	}
+
+	registerProofTreeProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.ProofTreeProvider): vscode.Disposable {
+		const handle = this._addNewAdapter(new ProofTreeAdapter(this._documents, provider), extension);
+		this._proxy.$registerProofTreeProvider(handle, this._transformDocumentSelector(selector, extension), extension.identifier);
+		return this._createDisposable(handle);
+	}
+
+	$provideProofTree(handle: number, resource: UriComponents, position: IPosition, token: CancellationToken): Promise<languages.ProofTree | undefined> {
+		return this._withAdapter(handle, ProofTreeAdapter, adapter => adapter.provideProofTree(URI.revive(resource), position, token), undefined, token);
 	}
 
 	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<extHostProtocol.IInlayHintsDto | undefined> {

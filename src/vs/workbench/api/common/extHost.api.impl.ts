@@ -666,6 +666,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerInlayHintsProvider(selector: vscode.DocumentSelector, provider: vscode.InlayHintsProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerInlayHintsProvider(extension, selector, provider);
 			},
+			registerProofTreeProvider(selector: vscode.DocumentSelector, provider: vscode.ProofTreeProvider): vscode.Disposable {
+				// We don't use vscode dts for this, so we don't need to check for the proposed api
+				// checkProposedApiEnabled(extension, 'proofTreeProvider');
+				return extHostLanguageFeatures.registerProofTreeProvider(extension, selector, provider);
+			},
 			createLanguageStatusItem(id: string, selector: vscode.DocumentSelector): vscode.LanguageStatusItem {
 				return extHostLanguages.createLanguageStatusItem(extension, id, selector);
 			},
