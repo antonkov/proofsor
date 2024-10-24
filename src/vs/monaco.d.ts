@@ -8071,6 +8071,7 @@ declare namespace monaco.languages {
 	};
 
 	export type LeanTactic = {
+		lineNumber: number;
 		tacticString: string;
 		tacticDependsOn: string[];
 		goalBefore: LeanGoal;

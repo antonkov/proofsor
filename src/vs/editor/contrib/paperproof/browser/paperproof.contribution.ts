@@ -14,6 +14,8 @@ import { ILanguageFeaturesService } from '../../../common/services/languageFeatu
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { ProofTreeProvider } from '../../../common/languages.js';
+import { converter } from './converter.js';
+import { ConvertedProofTree } from './types.js';
 
 export class PaperproofDecorations extends Disposable implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.paperproof';
@@ -60,6 +62,20 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 		this._updateDecorations();
 	}
 
+	private async _getProofTree(): Promise<ConvertedProofTree | undefined> {
+		const model = this.editor.getModel();
+		const provider = this.proofTreeProvider.get();
+		const position = this.editor.getPosition();
+		if (!model || !provider || !position) {
+			return undefined;
+		}
+		const leanProofTree = await provider.provideProofTree(model, position, CancellationToken.None);
+		if (!leanProofTree) {
+			return undefined;
+		}
+		return converter(leanProofTree);
+	}
+
 	private async _updateDecorations() {
 		const model = this.editor.getModel();
 		const provider = this.proofTreeProvider.get();
@@ -67,8 +83,8 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 		if (!model || !provider || !position) {
 			return;
 		}
-		const tree = await provider.provideProofTree(model, position, CancellationToken.None);
-		this.log.info(`[dbg] Proof tree: ${tree?.map(t => t.tacticString).join(', ')}`);
+		const tree = await this._getProofTree();
+		this.log.info(`[dbg] Proof tree: ${tree?.tactics.length}`);
 
 		this.editor.changeDecorations(accessor => {
 			const oldDecorationIds = this._decorationIds;

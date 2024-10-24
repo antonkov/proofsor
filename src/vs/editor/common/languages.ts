@@ -2100,6 +2100,7 @@ export type LeanGoal = {
 };
 
 export type LeanTactic = {
+	lineNumber: number;
 	tacticString: string;
 	tacticDependsOn: string[];
 	goalBefore: LeanGoal;

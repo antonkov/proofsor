@@ -1,0 +1,116 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+export type LeanHypothesis = {
+	value: null | string;
+	username: string;
+	type: string;
+	id: string;
+	isProof: string;
+};
+
+export type LeanGoal = {
+	username: string;
+	type: string;
+	id: string;
+	hyps: LeanHypothesis[];
+};
+
+export type LeanTactic = {
+	tacticString: string;
+	tacticDependsOn: string[];
+	goalBefore: LeanGoal;
+	goalsAfter: LeanGoal[];
+	spawnedGoals: LeanGoal[];
+};
+
+export type LeanProofTree = LeanTactic[];
+
+
+export interface GoalNode {
+	text: string;
+	name: string;
+	id: string;
+}
+
+export interface HypNode {
+	text: string | null;
+	name: string | null;
+	id: string;
+	isProof: string;
+}
+
+export interface TabledHyp {
+	type: 'hypothesis';
+	hypNode: HypNode;
+	columnFrom: number;
+	columnTo: number;
+	row: number;
+}
+export interface TabledTactic {
+	type: 'tactic';
+	tactic: Tactic;
+	columnFrom: number;
+	columnTo: number;
+	row: number;
+	arrowFrom: string | null;
+	shardId: string;
+}
+export type TabledCell = TabledHyp | TabledTactic;
+export interface Table {
+	tabledHyps: TabledHyp[];
+	tabledTactics: TabledTactic[];
+	currentRow: number;
+	row1Hyps?: HypNode[];
+}
+
+export interface HypLayer {
+	tacticId: string;
+	hypNodes: HypNode[];
+}
+
+export interface Box {
+	id: string;
+	parentId: string | null | 'haveBox';
+	/**
+	 * **Raw information about what hypotheses and goals are in this box.**
+	 *
+	 * [inserted in `converter.ts`].
+	 */
+	goalNodes: GoalNode[];
+	/**
+	 * **Raw information about what hypotheses and goals are in this box.**
+	 *
+	 * [inserted in `converter.ts`].
+	 */
+	hypLayers: HypLayer[];
+	/**
+	 * **Derived prop (from `hypLayers` and `goalNodes`).**
+	 * Tells us exactly where hypotheses should be located in the UI to make it pretty.
+	 *
+	 * [inserted in `hypsToTables.ts`].
+	 */
+	hypTables: Table[];
+}
+
+export interface Tactic {
+	id: string;
+	text: string;
+	dependsOnIds: string[];
+	goalArrows: { fromId: string; toId: string }[];
+	hypArrows: { fromId: string | null; toIds: string[]; shardId: string }[];
+	successGoalId?: string;
+	// TODO: Those are actually `byBox`s which were used to create
+	// parameters for this tactic. For example in
+	// `have <p, q> := <by rfl, by trivial>`
+	// there are 2 `byBox`s.
+	haveBoxIds: string[];
+}
+
+export interface ConvertedProofTree {
+	boxes: Box[];
+	tactics: Tactic[];
+	equivalentIds: { [key: string]: string[] };
+}
