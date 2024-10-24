@@ -345,6 +345,7 @@ const handleTacticApp = (tactic: LeanTactic, pretty: ConvertedProofTree) => {
 		if (prettyHypNodes.length > 0) {
 			box.hypLayers.push({
 				tacticId,
+				lineNumber: tactic.lineNumber,
 				hypNodes: prettyHypNodes,
 			});
 		}
@@ -353,6 +354,7 @@ const handleTacticApp = (tactic: LeanTactic, pretty: ConvertedProofTree) => {
 
 	pretty.tactics.push({
 		id: tacticId,
+		lineNumber: tactic.lineNumber,
 		text: tactic.tacticString,
 		dependsOnIds: tactic.tacticDependsOn,
 		goalArrows: prettyGoalArrows,
@@ -386,13 +388,14 @@ const drawInitialGoal = (
 			},
 		],
 		hypLayers:
-			hypNodes.length > 0 ? [{ tacticId: tacticId, hypNodes: hypNodes }] : [],
+			hypNodes.length > 0 ? [{ tacticId: tacticId, lineNumber: 0, hypNodes: hypNodes }] : [],
 		hypTables: [],
 	};
 
 	pretty.boxes.push(initialBox);
 	pretty.tactics.push({
 		id: tacticId,
+		lineNumber: 0,
 		text: 'init',
 		dependsOnIds: [],
 		goalArrows: [],

@@ -19,6 +19,7 @@ export type LeanGoal = {
 };
 
 export type LeanTactic = {
+	lineNumber: number;
 	tacticString: string;
 	tacticDependsOn: string[];
 	goalBefore: LeanGoal;
@@ -68,6 +69,7 @@ export interface Table {
 
 export interface HypLayer {
 	tacticId: string;
+	lineNumber: number;
 	hypNodes: HypNode[];
 }
 
@@ -97,6 +99,7 @@ export interface Box {
 
 export interface Tactic {
 	id: string;
+	lineNumber: number;
 	text: string;
 	dependsOnIds: string[];
 	goalArrows: { fromId: string; toId: string }[];

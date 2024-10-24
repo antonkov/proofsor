@@ -17,6 +17,26 @@ import { ProofTreeProvider } from '../../../common/languages.js';
 import { converter } from './converter.js';
 import { ConvertedProofTree } from './types.js';
 
+interface HypChip {
+	lineNumber: number;
+	hypothesis: string;
+}
+
+const getHypChips = (tree: ConvertedProofTree): HypChip[] => {
+	const result: HypChip[] = [];
+	for (const box of tree.boxes) {
+		for (const hypLayer of box.hypLayers) {
+			for (const hyp of hypLayer.hypNodes) {
+				result.push({
+					lineNumber: hypLayer.lineNumber,
+					hypothesis: hyp.text ?? 'no text',
+				});
+			}
+		}
+	}
+	return result;
+};
+
 export class PaperproofDecorations extends Disposable implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.paperproof';
 
@@ -84,7 +104,8 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 			return;
 		}
 		const tree = await this._getProofTree();
-		this.log.info(`[dbg] Proof tree: ${tree?.tactics.length}`);
+		const hypChips = tree ? getHypChips(tree) : [];
+		this.log.info(`[dbg] Hypotheses: ${hypChips.map(h => `${h.lineNumber}: ${h.hypothesis}`).join('; ')}`);
 
 		this.editor.changeDecorations(accessor => {
 			const oldDecorationIds = this._decorationIds;
