@@ -21,6 +21,7 @@ import { EditorOption } from '../../../common/config/editorOptions.js';
 
 interface HypChip {
 	lineNumber: number;
+	name: string;
 	hypothesis: string;
 }
 
@@ -30,6 +31,7 @@ const getHypChips = (tree: ConvertedProofTree): HypChip[] => {
 		for (const hypLayer of box.hypLayers) {
 			for (const hyp of hypLayer.hypNodes) {
 				result.push({
+					name: hyp.name ?? 'no name',
 					lineNumber: hypLayer.lineNumber,
 					hypothesis: hyp.text ?? 'no text',
 				});
@@ -48,7 +50,8 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly proofTreeProvider = observableValue<ProofTreeProvider | undefined>(this, undefined);
 	private readonly _ruleFactory = new DynamicCssRules(this.editor);
-	private _chipRule: ClassNameReference;
+	private _typeRule: ClassNameReference;
+	private _nameRule: ClassNameReference;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -58,13 +61,21 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 		super();
 
 		const editorFontSize = this.editor.getOption(EditorOption.fontSize);
-		this._chipRule = this._ruleFactory.createClassNameRef({
+		this._nameRule = this._ruleFactory.createClassNameRef({
+			backgroundColor: '#a4dabc',
+			color: '#d0005b',
+			border: '2px solid rgb(152 214 179)',
+			height: '12px',
+			padding: '0 4px',
+			margin: '0 0 0 16px',
+			display: 'inline-block'
+		});
+		this._typeRule = this._ruleFactory.createClassNameRef({
 			backgroundColor: '#a4dabc',
 			color: '#3a505a',
 			border: '2px solid rgb(152 214 179)',
 			height: '12px',
 			padding: '0 4px',
-			margin: '0 0 0 16px',
 			display: 'inline-block'
 		});
 
@@ -125,6 +136,24 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 		const hypChips = tree ? getHypChips(tree) : [];
 		this.log.info(`[dbg] Hypotheses: ${hypChips.map(h => `${h.lineNumber}: ${h.hypothesis}`).join('; ')}`);
 
+		const createOptions = (content: string, inlineClassName: string) => {
+			const nameOpts: InjectedTextOptions = {
+				content,
+				inlineClassNameAffectsLetterSpacing: true,
+				inlineClassName,
+				cursorStops: InjectedTextCursorStops.None,
+			};
+
+			const options = {
+				description: 'Paperproof chip',
+				showIfCollapsed: true,
+				collapseOnReplaceEdit: true,
+				stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
+				after: nameOpts
+			};
+			return options;
+		};
+
 		this.editor.changeDecorations(accessor => {
 			const oldDecorationIds = this._decorationIds;
 			const model = this.editor.getModel();
@@ -134,28 +163,18 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 				if (hypChip.lineNumber === 0) {
 					continue;
 				}
-				const opts: InjectedTextOptions = {
-					content: `${hypChip.hypothesis}`,
-					inlineClassNameAffectsLetterSpacing: true,
-					inlineClassName: this._chipRule.className,
-					cursorStops: InjectedTextCursorStops.None,
-				};
-
-				const options = {
-					description: 'Paperproof chip',
-					showIfCollapsed: true,
-					collapseOnReplaceEdit: true,
-					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges,
-					after: opts
-				};
 
 				const range = new Range(hypChip.lineNumber, 0, hypChip.lineNumber, 100);
-				decorations.push({ range, options });
+
+				decorations.push({ range, options: createOptions(`${hypChip.name}`, this._nameRule.className) });
+				decorations.push({
+					range, options: createOptions(`${hypChip.hypothesis}`, this._typeRule.className)
+				});
+				const newDecorationIds = accessor.deltaDecorations(this._decorationIds, decorations);
+				this._decorationIds = newDecorationIds;
+				this.log.info(`Changing decorations. Old ids: ${oldDecorationIds.join(',')}`);
+				this.log.info(`Changing decorations. New ids: ${newDecorationIds.join(',')}`);
 			}
-			const newDecorationIds = accessor.deltaDecorations(this._decorationIds, decorations);
-			this._decorationIds = newDecorationIds;
-			this.log.info(`Changing decorations. Old ids: ${oldDecorationIds.join(',')}`);
-			this.log.info(`Changing decorations. New ids: ${newDecorationIds.join(',')}`);
 		});
 	}
 
