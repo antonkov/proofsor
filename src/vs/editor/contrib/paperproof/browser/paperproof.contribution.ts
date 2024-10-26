@@ -62,23 +62,19 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 
 		const editorFontSize = this.editor.getOption(EditorOption.fontSize);
 		this._nameRule = this._ruleFactory.createClassNameRef({
+			fontWeight: '600',
 			backgroundColor: '#a4dabc',
 			color: '#d0005b',
-			border: '2px solid rgb(152 214 179)',
-			height: '12px',
-			padding: '0 4px',
-			margin: '0 0 0 16px',
-			display: 'inline-block'
+			borderRadius: '3px 0 0 3px',
+			padding: '0 0 0 4px',
 		});
 		this._typeRule = this._ruleFactory.createClassNameRef({
+			fontWeight: '600',
 			backgroundColor: '#a4dabc',
 			color: '#3a505a',
-			border: '2px solid rgb(152 214 179)',
-			height: '12px',
-			padding: '0 4px',
-			display: 'inline-block'
+			borderRadius: '0 3px 3px 0',
+			padding: '0 4px 0 0',
 		});
-
 
 
 		this._register(this.languageFeaturesService.proofTreeProvider.onDidChange(async () => {
@@ -166,9 +162,10 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 
 				const range = new Range(hypChip.lineNumber, 0, hypChip.lineNumber, 100);
 
+				decorations.push({ range, options: createOptions('  ', '') });
 				decorations.push({ range, options: createOptions(`${hypChip.name}`, this._nameRule.className) });
 				decorations.push({
-					range, options: createOptions(`${hypChip.hypothesis}`, this._typeRule.className)
+					range, options: createOptions(`: ${hypChip.hypothesis}`, this._typeRule.className)
 				});
 				const newDecorationIds = accessor.deltaDecorations(this._decorationIds, decorations);
 				this._decorationIds = newDecorationIds;
