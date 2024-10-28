@@ -1,0 +1,29 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .paperproof-hypothesis-name {
+	font-weight: 600;
+	background-color: #a4dabc;
+	color: #d0005b;
+	border-radius: 3px 0 0 3px;
+	padding: 0 0 0 4px;
+}
+
+.monaco-editor .paperproof-hypothesis-type {
+	font-weight: 600;
+	background-color: #a4dabc;
+	color: #3a505a;
+	border-radius: 0 3px 3px 0;
+	padding: 0 4px 0 0;
+}
+
+.monaco-editor .paperproof-goal {
+	font-weight: 600;
+	background-color: #f9c3c3;
+	color: #3a505a;
+	border-radius: 3px;
+	padding: 0 4px 0 4px;
+	white-space: nowrap;
+}

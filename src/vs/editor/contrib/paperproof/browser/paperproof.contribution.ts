@@ -17,8 +17,8 @@ import { observableValue } from '../../../../base/common/observable.js';
 import { ProofTreeProvider } from '../../../common/languages.js';
 import { converter } from './converter.js';
 import { ConvertedProofTree } from './types.js';
-import { ClassNameReference, DynamicCssRules } from '../../../browser/editorDom.js';
 import { Constants } from '../../../../base/common/uint.js';
+import './paperproof.css';
 
 interface HypChip {
 	lineNumber: number;
@@ -90,9 +90,13 @@ class GoalContentWidget implements IContentWidget {
 	readonly domNode: HTMLElement;
 	private _widgetPosition?: IContentWidgetPosition;
 
-	constructor(private readonly _editor: IActiveCodeEditor, line: number) {
+	constructor(private readonly _editor: IActiveCodeEditor, line: number, text: string) {
 		this.domNode = document.createElement('div');
-		dom.reset(this.domNode, dom.$('span', undefined, 'Goal'));
+		this.domNode.className = 'paperproof-goal';
+
+		const children: HTMLElement[] = [];
+		children.push(dom.$('span', undefined, text));
+		dom.reset(this.domNode, ...children);
 
 		this.updatePosition(line);
 
@@ -130,9 +134,6 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly proofTreeProvider = observableValue<ProofTreeProvider | undefined>(this, undefined);
-	private readonly _ruleFactory = new DynamicCssRules(this.editor);
-	private _typeRule: ClassNameReference;
-	private _nameRule: ClassNameReference;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -140,21 +141,6 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
-
-		this._nameRule = this._ruleFactory.createClassNameRef({
-			fontWeight: '600',
-			backgroundColor: '#a4dabc',
-			color: '#d0005b',
-			borderRadius: '3px 0 0 3px',
-			padding: '0 0 0 4px',
-		});
-		this._typeRule = this._ruleFactory.createClassNameRef({
-			fontWeight: '600',
-			backgroundColor: '#a4dabc',
-			color: '#3a505a',
-			borderRadius: '0 3px 3px 0',
-			padding: '0 4px 0 0',
-		});
 
 		this._register(this.languageFeaturesService.proofTreeProvider.onDidChange(async () => {
 			this.log.info('[dbg] Proof tree changed');
@@ -241,9 +227,9 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 				const range = new Range(hypChip.lineNumber, 0, hypChip.lineNumber, 100);
 
 				decorations.push({ range, options: createOptions('  ', '') });
-				decorations.push({ range, options: createOptions(`${hypChip.name}`, this._nameRule.className) });
+				decorations.push({ range, options: createOptions(`${hypChip.name}`, 'paperproof-hypothesis-name') });
 				decorations.push({
-					range, options: createOptions(`: ${hypChip.hypothesis}`, this._typeRule.className)
+					range, options: createOptions(`: ${hypChip.hypothesis}`, 'paperproof-hypothesis-type')
 				});
 			}
 
@@ -265,7 +251,7 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 				const goalViewZone = new GoalViewZone(cursorLineNumber, 20, () => {
 				});
 				this._goalViewZoneId = viewZonesAccessor.addZone(goalViewZone);
-				this._contentWidget = new GoalContentWidget(<IActiveCodeEditor>this.editor, cursorLineNumber);
+				this._contentWidget = new GoalContentWidget(<IActiveCodeEditor>this.editor, cursorLineNumber, 'xts');
 				this.editor.addContentWidget(this._contentWidget);
 			});
 		});
