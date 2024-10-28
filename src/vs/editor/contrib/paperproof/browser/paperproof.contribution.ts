@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { Range } from '../../../common/core/range.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ICodeEditor } from '../../../browser/editorBrowser.js';
+import { ICodeEditor, IViewZone, IContentWidget, IContentWidgetPosition, ContentWidgetPositionPreference, IActiveCodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
-import { IModelDeltaDecoration, InjectedTextCursorStops, InjectedTextOptions, TrackedRangeStickiness } from '../../../common/model.js';
+import { IModelDeltaDecoration, InjectedTextCursorStops, InjectedTextOptions, PositionAffinity, TrackedRangeStickiness } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -17,7 +18,7 @@ import { ProofTreeProvider } from '../../../common/languages.js';
 import { converter } from './converter.js';
 import { ConvertedProofTree } from './types.js';
 import { ClassNameReference, DynamicCssRules } from '../../../browser/editorDom.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
+import { Constants } from '../../../../base/common/uint.js';
 
 interface HypChip {
 	lineNumber: number;
@@ -41,11 +42,91 @@ const getHypChips = (tree: ConvertedProofTree): HypChip[] => {
 	return result;
 };
 
+class GoalViewZone implements IViewZone {
+	readonly suppressMouseDown: boolean;
+	readonly domNode: HTMLElement;
+
+	afterLineNumber: number;
+	/**
+	 * We want that this view zone, which reserves space for a goal appears
+	 * as close as possible to the next line, so we use a very large value here.
+	 */
+	readonly afterColumn = Constants.MAX_SAFE_SMALL_INTEGER;
+	heightInPx: number;
+
+	private _lastHeight?: number;
+	private readonly _onHeight: () => void;
+
+	constructor(afterLineNumber: number, heightInPx: number, onHeight: () => void) {
+		this.afterLineNumber = afterLineNumber;
+		this.heightInPx = heightInPx;
+
+		this._onHeight = onHeight;
+		this.suppressMouseDown = true;
+		this.domNode = document.createElement('div');
+	}
+
+	onComputedHeight(height: number): void {
+		if (this._lastHeight === undefined) {
+			this._lastHeight = height;
+		} else if (this._lastHeight !== height) {
+			this._lastHeight = height;
+			this._onHeight();
+		}
+	}
+
+	isVisible(): boolean {
+		return this._lastHeight !== 0
+			&& this.domNode.hasAttribute('monaco-visible-view-zone');
+	}
+}
+
+class GoalContentWidget implements IContentWidget {
+	private static _idPool = 0;
+
+	private readonly _id: string;
+	readonly allowEditorOverflow: boolean = false;
+	readonly suppressMouseDown: boolean = true;
+	readonly domNode: HTMLElement;
+	private _widgetPosition?: IContentWidgetPosition;
+
+	constructor(private readonly _editor: IActiveCodeEditor, line: number) {
+		this.domNode = document.createElement('div');
+		dom.reset(this.domNode, dom.$('span', undefined, 'Goal'));
+
+		this.updatePosition(line);
+
+		this._id = `paperproof.goal-${(GoalContentWidget._idPool++)}`;
+	}
+
+	getId(): string {
+		return this._id;
+	}
+
+	getDomNode(): HTMLElement {
+		return this.domNode;
+	}
+
+	updatePosition(line: number): void {
+		this._widgetPosition = {
+			position: { lineNumber: line, column: 0 },
+			preference: [ContentWidgetPositionPreference.BELOW]
+		};
+	}
+
+	getPosition(): IContentWidgetPosition | null {
+		return this._widgetPosition ?? null;
+	}
+}
+
 export class PaperproofDecorations extends Disposable implements IEditorContribution {
 	static readonly ID: string = 'editor.contrib.paperproof';
 
 	// Decoration ids contributed by paperproof
 	private _decorationIds: string[] = [];
+	private _goalViewZoneId?: string;
+	private _contentWidget?: GoalContentWidget;
+
 
 	private readonly _sessionDisposables = new DisposableStore();
 	private readonly proofTreeProvider = observableValue<ProofTreeProvider | undefined>(this, undefined);
@@ -60,7 +141,6 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 	) {
 		super();
 
-		const editorFontSize = this.editor.getOption(EditorOption.fontSize);
 		this._nameRule = this._ruleFactory.createClassNameRef({
 			fontWeight: '600',
 			backgroundColor: '#a4dabc',
@@ -75,7 +155,6 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 			borderRadius: '0 3px 3px 0',
 			padding: '0 4px 0 0',
 		});
-
 
 		this._register(this.languageFeaturesService.proofTreeProvider.onDidChange(async () => {
 			this.log.info('[dbg] Proof tree changed');
@@ -152,7 +231,6 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 
 		this.editor.changeDecorations(accessor => {
 			const oldDecorationIds = this._decorationIds;
-			const model = this.editor.getModel();
 
 			const decorations: IModelDeltaDecoration[] = [];
 			for (const hypChip of hypChips) {
@@ -167,17 +245,45 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 				decorations.push({
 					range, options: createOptions(`: ${hypChip.hypothesis}`, this._typeRule.className)
 				});
-				const newDecorationIds = accessor.deltaDecorations(this._decorationIds, decorations);
-				this._decorationIds = newDecorationIds;
-				this.log.info(`Changing decorations. Old ids: ${oldDecorationIds.join(',')}`);
-				this.log.info(`Changing decorations. New ids: ${newDecorationIds.join(',')}`);
 			}
+
+			const newDecorationIds = accessor.deltaDecorations(this._decorationIds, decorations);
+			this._decorationIds = newDecorationIds;
+			this.log.info(`Changing decorations. Old ids: ${oldDecorationIds.join(',')}`);
+			this.log.info(`Changing decorations. New ids: ${newDecorationIds.join(',')}`);
+
+			this.editor.changeViewZones(viewZonesAccessor => {
+				const cursorLineNumber = this.editor.getPosition()?.lineNumber ?? 0;
+				if (this._goalViewZoneId) {
+					viewZonesAccessor.removeZone(this._goalViewZoneId);
+					this._goalViewZoneId = undefined;
+				}
+				if (this._contentWidget) {
+					this.editor.removeContentWidget(this._contentWidget);
+					this._contentWidget = undefined;
+				}
+				const goalViewZone = new GoalViewZone(cursorLineNumber, 20, () => {
+				});
+				this._goalViewZoneId = viewZonesAccessor.addZone(goalViewZone);
+				this._contentWidget = new GoalContentWidget(<IActiveCodeEditor>this.editor, cursorLineNumber);
+				this.editor.addContentWidget(this._contentWidget);
+			});
 		});
 	}
 
 	private _removeAllDecorations(): void {
 		this.editor.removeDecorations(this._decorationIds);
 		this._decorationIds = [];
+		this.editor.changeViewZones(viewZonesAccessor => {
+			if (this._goalViewZoneId) {
+				viewZonesAccessor.removeZone(this._goalViewZoneId);
+				this._goalViewZoneId = undefined;
+			}
+			if (this._contentWidget) {
+				this.editor.removeContentWidget(this._contentWidget);
+				this._contentWidget = undefined;
+			}
+		});
 	}
 }
 
