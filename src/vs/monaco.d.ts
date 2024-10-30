@@ -8081,7 +8081,25 @@ declare namespace monaco.languages {
 
 	export type LeanProofTree = LeanTactic[];
 
-	export type ProofTree = LeanProofTree;
+	export interface LeanInteractiveHyp {
+		fvarIds: string[];
+		names: string[];
+		type: object;
+	}
+
+	export interface LeanInteractiveGoal {
+		ctx: object;
+		goalPrefix: string;
+		hyps: LeanInteractiveHyp[];
+		mvarId: string;
+		type: object;
+		userName: string;
+	}
+
+	export interface ProofTree {
+		goal: LeanInteractiveGoal;
+		proofTree: LeanProofTree;
+	}
 
 	export interface ProofTreeProvider {
 		provideProofTree(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<ProofTree | undefined>;

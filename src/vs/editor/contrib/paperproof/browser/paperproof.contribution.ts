@@ -81,6 +81,11 @@ class GoalViewZone implements IViewZone {
 	}
 }
 
+interface ProofState {
+	tree: ConvertedProofTree;
+	goal: string;
+}
+
 class GoalContentWidget implements IContentWidget {
 	private static _idPool = 0;
 
@@ -143,7 +148,7 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 		super();
 
 		this._register(this.languageFeaturesService.proofTreeProvider.onDidChange(async () => {
-			this.log.info('[dbg] Proof tree changed');
+			// this.log.info('[dbg] Proof tree changed');
 			const model = this.editor.getModel();
 			if (!model) {
 				return;
@@ -172,18 +177,20 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 		this._updateDecorations();
 	}
 
-	private async _getProofTree(): Promise<ConvertedProofTree | undefined> {
+	private async _getProofTree(): Promise<ProofState | undefined> {
 		const model = this.editor.getModel();
 		const provider = this.proofTreeProvider.get();
 		const position = this.editor.getPosition();
 		if (!model || !provider || !position) {
 			return undefined;
 		}
-		const leanProofTree = await provider.provideProofTree(model, position, CancellationToken.None);
-		if (!leanProofTree) {
+		const proofState = await provider.provideProofTree(model, position, CancellationToken.None);
+		if (!proofState) {
 			return undefined;
 		}
-		return converter(leanProofTree);
+		const goal = proofState.proofTree.flatMap(tactic => [tactic.goalBefore, ...tactic.goalsAfter]).find(g => g.id === proofState.goal.mvarId);
+		// this.log.info(`[dbg] Goal: ${JSON.stringify(goal)}`);
+		return { tree: converter(proofState.proofTree), goal: goal ? goal.type : 'no goal' };
 	}
 
 	private async _updateDecorations() {
@@ -193,9 +200,13 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 		if (!model || !provider || !position) {
 			return;
 		}
-		const tree = await this._getProofTree();
+		const proofState = await this._getProofTree();
+		if (!proofState) {
+			return;
+		}
+		const { tree, goal } = proofState;
 		const hypChips = tree ? getHypChips(tree) : [];
-		this.log.info(`[dbg] Hypotheses: ${hypChips.map(h => `${h.lineNumber}: ${h.hypothesis}`).join('; ')}`);
+		// this.log.info(`[dbg] Hypotheses: ${hypChips.map(h => `${h.lineNumber}: ${h.hypothesis}`).join('; ')}`);
 
 		const createOptions = (content: string, inlineClassName: string) => {
 			const nameOpts: InjectedTextOptions = {
@@ -251,7 +262,7 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 				const goalViewZone = new GoalViewZone(cursorLineNumber, 20, () => {
 				});
 				this._goalViewZoneId = viewZonesAccessor.addZone(goalViewZone);
-				this._contentWidget = new GoalContentWidget(<IActiveCodeEditor>this.editor, cursorLineNumber, 'xts');
+				this._contentWidget = new GoalContentWidget(<IActiveCodeEditor>this.editor, cursorLineNumber, goal);
 				this.editor.addContentWidget(this._contentWidget);
 			});
 		});
