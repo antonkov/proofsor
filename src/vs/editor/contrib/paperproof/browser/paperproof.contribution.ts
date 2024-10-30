@@ -84,6 +84,7 @@ class GoalViewZone implements IViewZone {
 interface ProofState {
 	tree: ConvertedProofTree;
 	goal: string;
+	goals: { lineNumber: number; goal: string }[];
 }
 
 class GoalContentWidget implements IContentWidget {
@@ -133,8 +134,8 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 
 	// Decoration ids contributed by paperproof
 	private _decorationIds: string[] = [];
-	private _goalViewZoneId?: string;
-	private _contentWidget?: GoalContentWidget;
+	private _viewZoneIds: string[] = [];
+	private _contentWidgets: GoalContentWidget[] = [];
 
 
 	private readonly _sessionDisposables = new DisposableStore();
@@ -189,8 +190,20 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 			return undefined;
 		}
 		const goal = proofState.proofTree.flatMap(tactic => [tactic.goalBefore, ...tactic.goalsAfter]).find(g => g.id === proofState.goal.mvarId);
+		const handled = new Set<string>();
+		const goals = proofState.proofTree.flatMap(tactic => {
+			/*if (tactic.goalsAfter.length !== 1 || tactic.goalBefore.type !== tactic.goalsAfter[0].type) {
+				// Goal changed, so we want to show it.
+				return tactic.goalsAfter.map(g => ({ lineNumber: tactic.lineNumber, goal: g.type }));
+			}
+			return [];*/
+			handled.add(tactic.goalBefore.id);
+			return [{ lineNumber: tactic.lineNumber - 1, goal: tactic.goalBefore.type }];
+		});
+		const lastLineNumber = proofState.proofTree.length > 0 ? proofState.proofTree[proofState.proofTree.length - 1].lineNumber : 0;
+		const moreGoals = proofState.proofTree.flatMap(tactic => tactic.goalsAfter.filter(g => !handled.has(g.id))).map(g => ({ lineNumber: lastLineNumber, goal: g.type }));
 		// this.log.info(`[dbg] Goal: ${JSON.stringify(goal)}`);
-		return { tree: converter(proofState.proofTree), goal: goal ? goal.type : 'no goal' };
+		return { tree: converter(proofState.proofTree), goal: goal ? goal.type : 'no goal', goals: [...goals, ...moreGoals] };
 	}
 
 	private async _updateDecorations() {
@@ -250,20 +263,22 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 			this.log.info(`Changing decorations. New ids: ${newDecorationIds.join(',')}`);
 
 			this.editor.changeViewZones(viewZonesAccessor => {
-				const cursorLineNumber = this.editor.getPosition()?.lineNumber ?? 0;
-				if (this._goalViewZoneId) {
-					viewZonesAccessor.removeZone(this._goalViewZoneId);
-					this._goalViewZoneId = undefined;
+				// const cursorLineNumber = this.editor.getPosition()?.lineNumber ?? 0;
+				for (const id of this._viewZoneIds) {
+					viewZonesAccessor.removeZone(id);
 				}
-				if (this._contentWidget) {
-					this.editor.removeContentWidget(this._contentWidget);
-					this._contentWidget = undefined;
+				this._viewZoneIds = [];
+				for (const widget of this._contentWidgets) {
+					this.editor.removeContentWidget(widget);
 				}
-				const goalViewZone = new GoalViewZone(cursorLineNumber, 20, () => {
-				});
-				this._goalViewZoneId = viewZonesAccessor.addZone(goalViewZone);
-				this._contentWidget = new GoalContentWidget(<IActiveCodeEditor>this.editor, cursorLineNumber, goal);
-				this.editor.addContentWidget(this._contentWidget);
+				this._contentWidgets = [];
+				for (const goal of proofState.goals) {
+					const goalViewZone = new GoalViewZone(goal.lineNumber, 20, () => {
+					});
+					this._viewZoneIds.push(viewZonesAccessor.addZone(goalViewZone));
+					this._contentWidgets.push(new GoalContentWidget(<IActiveCodeEditor>this.editor, goal.lineNumber, goal.goal));
+					this.editor.addContentWidget(this._contentWidgets[this._contentWidgets.length - 1]);
+				}
 			});
 		});
 	}
@@ -272,14 +287,14 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 		this.editor.removeDecorations(this._decorationIds);
 		this._decorationIds = [];
 		this.editor.changeViewZones(viewZonesAccessor => {
-			if (this._goalViewZoneId) {
-				viewZonesAccessor.removeZone(this._goalViewZoneId);
-				this._goalViewZoneId = undefined;
+			for (const id of this._viewZoneIds) {
+				viewZonesAccessor.removeZone(id);
 			}
-			if (this._contentWidget) {
-				this.editor.removeContentWidget(this._contentWidget);
-				this._contentWidget = undefined;
+			this._viewZoneIds = [];
+			for (const widget of this._contentWidgets) {
+				this.editor.removeContentWidget(widget);
 			}
+			this._contentWidgets = [];
 		});
 	}
 }
