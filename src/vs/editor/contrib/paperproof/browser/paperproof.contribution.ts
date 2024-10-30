@@ -96,13 +96,16 @@ class GoalContentWidget implements IContentWidget {
 	readonly domNode: HTMLElement;
 	private _widgetPosition?: IContentWidgetPosition;
 
-	constructor(private readonly _editor: IActiveCodeEditor, line: number, text: string) {
+	constructor(private readonly _editor: IActiveCodeEditor, line: number, texts: string[]) {
 		this.domNode = document.createElement('div');
-		this.domNode.className = 'paperproof-goal';
+		const container = dom.$('div', { class: 'paperproof-goal-container', style: `height: ${20 * texts.length}px` });
 
-		const children: HTMLElement[] = [];
-		children.push(dom.$('span', undefined, text));
-		dom.reset(this.domNode, ...children);
+		for (const text of texts) {
+			const goal = dom.$('div', undefined, text);
+			goal.className = 'paperproof-goal';
+			container.appendChild(goal);
+		}
+		dom.reset(this.domNode, container);
 
 		this.updatePosition(line);
 
@@ -272,11 +275,16 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 					this.editor.removeContentWidget(widget);
 				}
 				this._contentWidgets = [];
+				// Group goals by line number
+				const goalsByLineNumber = new Map<number, string[]>();
 				for (const goal of proofState.goals) {
-					const goalViewZone = new GoalViewZone(goal.lineNumber, 20, () => {
+					goalsByLineNumber.set(goal.lineNumber, [...(goalsByLineNumber.get(goal.lineNumber) ?? []), goal.goal]);
+				}
+				for (const [lineNumber, goals] of goalsByLineNumber.entries()) {
+					const goalViewZone = new GoalViewZone(lineNumber, 20 * goals.length, () => {
 					});
 					this._viewZoneIds.push(viewZonesAccessor.addZone(goalViewZone));
-					this._contentWidgets.push(new GoalContentWidget(<IActiveCodeEditor>this.editor, goal.lineNumber, goal.goal));
+					this._contentWidgets.push(new GoalContentWidget(<IActiveCodeEditor>this.editor, lineNumber, goals));
 					this.editor.addContentWidget(this._contentWidgets[this._contentWidgets.length - 1]);
 				}
 			});
