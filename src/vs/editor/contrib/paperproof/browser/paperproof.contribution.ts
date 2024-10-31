@@ -196,17 +196,18 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 		const handled = new Set<string>();
 		const lastLineNumber = new Map<string, number>();
 		const goals = proofState.proofTree.flatMap(tactic => {
-			/*if (tactic.goalsAfter.length !== 1 || tactic.goalBefore.type !== tactic.goalsAfter[0].type) {
+			if (tactic.goalsAfter.length !== 1 || tactic.goalBefore.type !== tactic.goalsAfter[0].type) {
 				// Goal changed, so we want to show it.
-				return tactic.goalsAfter.map(g => ({ lineNumber: tactic.lineNumber, goal: g.type }));
+				// We only do something if the goal has changed.
+				handled.add(tactic.goalBefore.id);
+				for (const goal of tactic.goalsAfter) {
+					const lineNumber = lastLineNumber.get(goal.id) ?? tactic.tailLineNumber;
+					lastLineNumber.set(goal.id, Math.max(lineNumber, tactic.tailLineNumber));
+				}
+				return [{ lineNumber: tactic.tailLineNumber - 1, goal: tactic.goalBefore.type }];
+			} else {
+				return [];
 			}
-			return [];*/
-			handled.add(tactic.goalBefore.id);
-			for (const goal of tactic.goalsAfter) {
-				const lineNumber = lastLineNumber.get(goal.id) ?? tactic.tailLineNumber;
-				lastLineNumber.set(goal.id, Math.max(lineNumber, tactic.tailLineNumber));
-			}
-			return [{ lineNumber: tactic.tailLineNumber - 1, goal: tactic.goalBefore.type }];
 		});
 		const moreGoals = proofState.proofTree.flatMap(tactic => tactic.goalsAfter.filter(g => !handled.has(g.id))).map(g => ({ lineNumber: lastLineNumber.get(g.id) ?? 0, goal: g.type }));
 		// this.log.info(`[dbg] Goal: ${JSON.stringify(goal)}`);
