@@ -96,7 +96,7 @@ class GoalContentWidget implements IContentWidget {
 	readonly domNode: HTMLElement;
 	private _widgetPosition?: IContentWidgetPosition;
 
-	constructor(private readonly _editor: IActiveCodeEditor, line: number, texts: string[]) {
+	constructor(private readonly _editor: IActiveCodeEditor, position: { lineNumber: number; column: number }, texts: string[]) {
 		this.domNode = document.createElement('div');
 		const container = dom.$('div', { class: 'paperproof-goal-container', style: `height: ${20 * texts.length}px` });
 
@@ -107,7 +107,7 @@ class GoalContentWidget implements IContentWidget {
 		}
 		dom.reset(this.domNode, container);
 
-		this.updatePosition(line);
+		this.updatePosition(position);
 
 		this._id = `paperproof.goal-${(GoalContentWidget._idPool++)}`;
 	}
@@ -120,9 +120,9 @@ class GoalContentWidget implements IContentWidget {
 		return this.domNode;
 	}
 
-	updatePosition(line: number): void {
+	updatePosition(position: { lineNumber: number; column: number }): void {
 		this._widgetPosition = {
-			position: { lineNumber: line, column: 0 },
+			position,
 			preference: [ContentWidgetPositionPreference.BELOW]
 		};
 	}
@@ -189,10 +189,10 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 			return undefined;
 		}
 		const proofState = await provider.provideProofTree(model, position, CancellationToken.None);
-		if (!proofState) {
+		if (!proofState || !proofState.proofTree) {
 			return undefined;
 		}
-		const goal = proofState.proofTree.flatMap(tactic => [tactic.goalBefore, ...tactic.goalsAfter]).find(g => g.id === proofState.goal.mvarId);
+		const goal = proofState.proofTree.flatMap(tactic => [tactic.goalBefore, ...tactic.goalsAfter]).find(g => g.id === proofState.goal?.mvarId);
 		const handled = new Set<string>();
 		const goals = proofState.proofTree.flatMap(tactic => {
 			/*if (tactic.goalsAfter.length !== 1 || tactic.goalBefore.type !== tactic.goalsAfter[0].type) {
@@ -284,7 +284,17 @@ export class PaperproofDecorations extends Disposable implements IEditorContribu
 					const goalViewZone = new GoalViewZone(lineNumber, 20 * goals.length, () => {
 					});
 					this._viewZoneIds.push(viewZonesAccessor.addZone(goalViewZone));
-					this._contentWidgets.push(new GoalContentWidget(<IActiveCodeEditor>this.editor, lineNumber, goals));
+
+					// Here I want to determine what horizontal position to use for the goal.
+					const prevLine = model.getLineContent(lineNumber);
+					const nextLine = lineNumber + 1 < model.getLineCount() ? model.getLineContent(lineNumber + 1) : '';
+					// Prefer to align with the next line, if it exists.
+					const line = nextLine.trim().length > 0 ? nextLine : prevLine;
+					// Find first non-whitespace character.
+					// +1 because search returns 0-based index.
+					const column = line.search(/\S/) + 1;
+
+					this._contentWidgets.push(new GoalContentWidget(<IActiveCodeEditor>this.editor, { lineNumber, column }, goals));
 					this.editor.addContentWidget(this._contentWidgets[this._contentWidgets.length - 1]);
 				}
 			});

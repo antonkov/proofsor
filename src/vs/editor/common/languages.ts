@@ -2130,8 +2130,8 @@ export interface LeanInteractiveGoal {
 
 
 export interface ProofTree {
-	goal: LeanInteractiveGoal;
-	proofTree: LeanProofTree;
+	goal?: LeanInteractiveGoal;
+	proofTree?: LeanProofTree;
 }
 
 export interface ProofTreeProvider {
